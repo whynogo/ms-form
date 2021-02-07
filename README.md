@@ -8,5 +8,5 @@
 #### 6.配合VertxGo后端，可以根据mysql的数据库定义直接自动生成ms-form所需的json，大大加快了CRUD的开发
 
 # 备注
-1.代码实际上是一个完整的完成预约功能的代码，包含学校活动和座位预约
-2.其中引用了众多非常好用的共享的components代码，比如QS-poster,mix-tree,hx-navibar等，不再一一感谢！！！
+#### 1.代码实际上是一个完整的完成预约功能的代码，包含学校活动和座位预约
+#### 2.其中引用了众多非常好用的共享的components代码，比如QS-poster,mix-tree,hx-navibar等，不再一一感谢！！！
