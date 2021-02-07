@@ -1,0 +1,232 @@
+<template>
+	<view class="cus-tab-list">
+		<view>
+			<u-tabs-swiper class="cus-tabs-swiper" :style="{top:0}" ref="uTabs" :list="tabs" :current="current" @change="tabsChange"
+			 :is-scroll="false" swiperWidth="750" ></u-tabs-swiper>
+		</view>
+		<swiper class="swipper" :style="{height:listHeight+'px'}" :current="swiperCurrent" @transition="transition"
+		 @animationfinish="animationfinish">
+			<swiper-item class="swiper-item" v-for="(tab, sIndex) in tabs" :key="sIndex">
+				<scroll-view  v-if="!isEmptyList(sIndex)" class="listview" :style="{height:listHeight+'px'}" scroll-y="true"
+				 @scrolltolower="onScrollLower(sIndex)">
+					<view >
+						<uni-cell v-for="(item, index) in getItemDataList(sIndex)" :key="item.id">
+							<cus-item style="padding:0px 10px 0px 10px" class="cus-item" 
+							:name="getItemName(sIndex,index)" 
+							:item="getItem(sIndex,index)"
+							 @cardEvent="cardEvent"></cus-item>
+						</uni-cell>
+					</view>
+					<u-loadmore v-if="isShowLoading(sIndex)" :status="getItemStatus(sIndex)" />
+				</scroll-view>
+				<u-empty v-if="isShowEmpty(sIndex)" text="没有数据" mode="list"></u-empty>
+			</swiper-item>
+		</swiper>
+	</view>
+</template>
+
+
+
+<script>
+	import uniCell from '@/components/uni-cell.vue';
+	import cusItem from '@/components/cus-tab-list/cus-item.vue';
+	export default {
+		components: {
+			uniCell,
+			cusItem
+		},
+
+		props: {
+			store: {
+				type: String,
+				default: ""
+			},
+			tabs: {
+				type:Array,
+				default: () => [{
+					name: "自己加tab"
+				}]
+			},
+			update:{
+				type: Boolean,
+				default: false
+			}
+
+		},
+		computed: {
+			// 计算属性的 getter
+
+			// _funItemDataList(){
+			// 	return function(id){
+			// 		console.log("_funItemDataList",this.funItemDataList(id))
+			// 		return this.funItemDataList(id)
+			// 	}
+			// }
+		},
+		data() {
+
+			return {
+				showIndex: 0,
+				listHeight: 750,
+				swipList: [{}],
+				// 因为内部的滑动机制限制，请将tabs组件和swiper组件的current用不同变量赋值
+				current: 0, // tabs组件的current值，表示当前活动的tab选项
+				swiperCurrent: 0, // swiper组件的current值，表示当前那个swiper-item是活动的
+				refreshIcon: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAMAAABg3Am1AAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAB5QTFRFcHBw3Nzct7e39vb2ycnJioqK7e3tpqam29vb////D8oK7wAAAAp0Uk5T////////////ALLMLM8AAABxSURBVHja7JVBDoAgDASrjqj//7CJBi90iyYeOHTPMwmFZrHjYyyFYYUy1bwUZqtJIYVxhf1a6u0R7iUvWsCcrEtwJHp8MwMdvh2amHduiZD3rpWId9+BgPd7Cc2LIkPyqvlQvKxKBJ//Qwq/CacAAwDUv0a0YuKhzgAAAABJRU5ErkJggg==",
+
+			};
+		},
+		mounted() {
+			this.calHeight()	
+		},
+		watch: {
+			update: function(newVal, oldVal) {
+				console.log("Y->", newVal)
+				this.$forceUpdate()
+			}
+		},
+		methods: {
+			calHeight(){
+				let that = this
+					uni.createSelectorQuery().in(this).select(".cus-tabs-swiper").boundingClientRect(function(data) { //data - 各种参数
+						if(null!=data)
+							that.listHeight =uni.getSystemInfoSync().windowHeight - uni.upx2px(data.height);
+							console.log("height=>",data) // 获取元素宽度
+						
+				}).exec()
+			},
+			// tabs通知swiper切换
+			tabsChange(index) {
+				this.swiperCurrent = index;
+				this.$emit("listEvent", {
+					name: "pageChanged",
+					pageNo: index
+				})
+			},
+			// swiper-item左右移动，通知tabs的滑块跟随移动
+			transition(e) {
+				let dx = e.detail.dx;
+				this.$refs.uTabs.setDx(dx);
+			},
+			// 由于swiper的内部机制问题，快速切换swiper不会触发dx的连续变化，需要在结束时重置状态
+			// swiper滑动结束，分别设置tabs和swiper的状态
+			animationfinish(e) {
+				let current = e.detail.current;
+				this.$refs.uTabs.setFinishCurrent(current);
+				this.swiperCurrent = current;
+				this.current = current;
+			},
+			// scroll-view到底部加载更多
+			onreachBottom() {
+
+			},
+			cardEvent(event) {
+				//所有的事件直接接力传送出去
+				console.log("接力")
+				this.$emit("cardEvent", event)
+			},
+			onScrollLower(pageNo) {
+				this.$emit("listEvent", {
+					"name": "onScrollLower",
+					pageNo: pageNo
+				})
+				this.calHeight()	
+			},
+			isShowEmpty(sIndex){
+				return this.isEmptyList(sIndex)&&"loadmore"!=this.getItemStatus(sIndex)				
+			},
+			isShowLoading(sIndex){
+				return !this.isEmptyList(sIndex)//&&("loadmore"==this.getItemStatus(sIndex)||"nomore"==this.getItemStatus(sIndex))
+			},
+			isEmptyList(pageNo) {
+				return this.$dva[this.store].isEmptyList(pageNo)
+			},
+			getItemDataList(pageNo){
+				return this.$dva[this.store].getItemDataList(pageNo)
+			},
+			getItemStatus(pageNo){
+				return this.$dva[this.store].getItemStatus(pageNo)
+			},
+			getItemName(pageNo,index){
+				return this.$dva[this.store].getItemName(pageNo,index)
+			},
+			getItem(sIndex, index) {
+				return this.getItemDataList(sIndex)[index]
+			},			
+
+		}
+	};
+</script>
+
+<style scoped lang="scss">
+	.cus-tab-list {
+		display: flex;
+		height: 100%;
+		min-height: 1000px;
+
+		.cus-tabs-swiper {
+			flex: 1;
+			flex-direction: column;
+			position: absolute;
+			left: 0;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			width: 100%;
+		}
+
+		.swiper {
+			flex: 1;
+			flex-direction: column;
+			position: absolute;
+			left: 0;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			width: 100%;
+			height: 100%;
+		}
+
+		.swiper-item {
+			flex: 1;
+			flex-direction: column;
+			position: absolute;
+			left: 0;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			width: 100%;
+			height: 100%;
+		}
+
+		.listview {
+			height: auto;
+			position: absolute;
+			left: 0;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			overflow-y: auto;
+			/* #ifndef APP-NVUE */
+			display: flex;
+			flex-direction: column;
+			/* #endif */
+			/* #ifndef MP-ALIPAY */
+			flex-direction: column;
+			/* #endif */
+		}
+
+		.cus-item {
+			flex: 1;
+			flex-direction: column;
+			position: absolute;
+			left: 0;
+			top: 0;
+			right: 0;
+			bottom: 0;
+			width: 100%;
+			min-height: 350upx;
+		}
+	}
+
+	}

@@ -1,0 +1,236 @@
+<template>
+	<view class="warp">
+<!-- 		<hx-navbar ref="hxnb" :config="naviConfig" @clickBtn="onNaviClick" /> -->
+		<view class="tab-list-page" >
+			<cus-tab-list ref="tablist" 
+			:tabs="tabs" 
+			@cardEvent="cardEvent" 
+			@listEvent="listEvent" 
+			:store="'recordList'"
+			:update="show"
+			></cus-tab-list>
+		</view>
+	</view>
+</template>
+
+<script>
+	
+
+	import CusTabList from '@/components/cus-tab-list/cus-tab-list.nvue'
+	import {
+		friendlyDate,
+		convertUTCTimeToLocalTime,
+		tomorrow,
+		today,
+		confirmDo,
+		isEmpty,
+		toAsync,
+		orderCall,
+		longToast
+	} from '@/common/util.js';
+	import {
+		getUserRecord,
+		checkin
+	} from '@/api/seat.js';
+	
+
+
+	export default {
+		components:{
+			CusTabList
+		},
+		data() {
+			return {
+				model:{
+					id:'',
+					kind:0,
+					depart:''
+				},
+				pageNo:0,
+				allRecordList:[],
+				tabs: [{
+					name: '今天'
+				}, {
+					name: '全部'
+				}, {
+					name: '异常'
+				}],
+				show:false,
+				naviConfig: {
+					back: true,
+					backPage: null,
+					title: '预约记录',
+					color: '#ffffff',
+					//背景颜色;参数一：透明度（0-1）;参数二：背景颜色（array则为线性渐变，string为单色背景）
+					backgroundColor: [1, ['#a9a1ff', '#6970ff']],
+					// 滑动屏幕后切换颜色，注意颜色为数组时长度必须一样，还有使用滑动切换必须监听 onPageScroll 事件
+					//    slideBackgroundColor: [0,['#a9a1ff','#6970ff','#ff55ff','#ff9999']],
+					// 状态栏 ，数组则为滑动变色
+					statusBarBackground: ['', '#ffffff'],
+					rightButton: [{
+						key: 'btn3',
+						icon: '&#x2718;',
+						position: 'left'
+					}],
+				},
+			}
+		},
+		mounted(){
+
+		},
+		onLoad(option) {
+			// 目前在某些平台参数会被主动 decode，暂时这样处理。
+			this.model.id=option.id
+			this.fectchRemoteData()
+		},
+		onShareAppMessage(res) {
+			return {
+				title:this.banner.title,
+				path:"/pages/detail/index?id="+this.model.id,
+				//imageUrl:this.banner.image,
+				// desc:this.banner.datetime,
+				//content:this.banner.source,
+				success(res){
+					uni.showToast({
+						title:'分享成功'
+					})
+				},
+				fail(res){
+					uni.showToast({
+						title:'分享失败',
+						icon:'none'
+					})
+				}
+			}
+		},
+		onPullDownRefresh(){
+			this.$dva["recordList"].resetQuery(this.pageNo)
+			this.fectchRemoteData(this.pageNo,1)
+		},
+		methods: {
+			getTabs(){
+				return this.tabs
+			},
+			cardEvent(item){
+				console.log("cardEvent",item)
+				item.isOperating=true
+			},
+			cardEvent(item){
+				console.log("cardEvent",item)
+				switch(item.name){
+					case "cardClick":{
+							this.onClick(item.item)
+							break;
+						}	
+				}			
+			},
+			listEvent(item){
+				console.log("listEvent",item)
+				switch(item.name){
+					case "pageChanged":{
+							this.pageNo=item.pageNo
+							if(this.$dva["recordList"].isEmptyList(item.pageNo))
+								this.fectchRemoteListData(item.pageNo,1)
+							break;
+						}
+					case "onScrollLower":{
+							this.fectchRemoteListData(item.pageNo,this.$dva["recordList"].getQueryPageIndex(item.pageNo)+1)
+							break;
+						}
+				}
+			},
+			fectchRemoteData() {
+				this.fectchRemoteListData(this.pageNo,1)	
+			},
+			fectchRemoteListData(pageNo,pageIndex) {
+				//下载event内容
+				var query=this.$u.deepClone(this.$dva["recordList"].listQuery[pageNo])
+				query.page_index=pageIndex
+
+				var fun_getUserRecord=toAsync(this,function(that,resolve,reject){
+					getUserRecord(query).then(rsp=>{
+					if (0 == rsp.code) {
+						
+						//that.show=false
+						const moreDataList=rsp.data.rows.map(item=>{
+							return{
+								id:item.record_id,
+								building:item.building_name,
+								area:item.area_name,
+								cover:item.building_image,
+								state:item.record_state,
+								datetime:item.record_date,
+								begin:item.record_begin,
+								end:item.record_end,
+								area_mac:item.area_mac
+							}
+						})
+						that.$dva["recordList"].addData(that,pageNo,moreDataList,rsp.data.total,pageIndex)
+						resolve(true)
+					}else
+						that.fail("加载失败，请重试!")
+					})
+					uni.stopPullDownRefresh()
+				})
+				orderCall(fun_getUserRecord)
+				
+			},
+			onNaviClick(item) {
+				confirmDo("确定要退出编辑吗?", f => {
+					reloadToast("正在退出...","/pages/news/index")
+				})
+			},
+			onClick(item){
+				if(1==item.state)
+					confirmDo("确定要签到吗?", f => {
+						this.checkin(item)
+					})
+			},
+			checkin(item){
+				this.$dva.wifi().search(item.area_mac).start(function(find){
+					console.log("wifi=>",find,item.area_mac)
+					if(find){
+						checkin({area_mac:item.area_mac}).then(rsp=>{
+							if(rsp.data.success)
+								uni.showToast({
+									icon:'scuccess',
+									title:rsp.message
+								})
+							else	
+								longToast(rsp.message)
+						})
+					}else
+						longToast("签到失败，请靠近"+item.name)
+					
+				})
+			}
+		}
+	}
+</script>
+
+<style>
+	.wrap {
+		margin-bottom: 30rpx;
+	}
+	
+	.tab-list-page {
+	  min-height: 100%;
+	  flex: 1;
+	  flex-direction: column;
+	  position: absolute;
+	  left: 0;
+	  top: 0;
+	  right: 0;
+	  bottom: 0;
+	}
+	
+
+	/* 适配iphonex 有底部横条的 */
+	@supports (bottom: constant(safe-area-inset-bottom)) or (bottom: env(safe-area-inset-bottom)) {
+		.fixed-box {
+			bottom: constant(safe-area-inset-bottom);
+			bottom: env(safe-area-inset-bottom);
+		}
+	}
+
+</style>

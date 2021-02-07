@@ -1,0 +1,168 @@
+{
+	"easycom": {
+		// 下载安装的方式需要前面的"@/"，npm安装的方式无需"@/"
+		// 下载安装方式
+		// "^u-(.*)": "@/uview-ui/components/u-$1/u-$1.vue"
+		// npm安装方式
+		"^u-(.*)": "uview-ui/components/u-$1/u-$1.vue"
+	},
+	"pages": [
+		{
+			"path": "pages/news/index",
+			"style": {
+				"enablePullDownRefresh": true
+			}
+		},
+		{
+			"path": "pages/news/poster",
+			"style": {
+				"backgroundColor": "#00000000"
+			}
+		},
+		{
+			"path": "pages/detail/index",
+			"style": {
+				"app-plus": {
+					"titleNView": {
+						"type": "transparent"
+					}
+				}
+			}
+		},
+		{
+			"path": "pages/login/login",
+			"style": {}
+		},
+		{
+			"path": "pages/login/wxlogin",
+			"style": {}
+		},
+		{
+			"path": "pages/login/forget",
+			"style": {}
+		},
+		{
+			"path": "pages/login/register",
+			"style": {}
+		},
+		{
+			"path": "pages/edit/admin",
+			"style": {
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/edit/lists",
+			"style": {
+			}
+		},
+		{
+			"path": "pages/edit/forms",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "编辑数据" //设置页面标题文字
+			}
+		},
+		{
+			"path": "pages/edit/editors",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "编辑数据" //设置页面标题文字
+			}
+		},
+		{
+			"path": "pages/edit/step1",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "编辑内容(1/3)" //设置页面标题文字
+			}
+		},
+		{
+			"path": "pages/edit/step2",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "编辑内容(2/3)" //设置页面标题文字
+			}
+		},
+		{
+			"path": "pages/edit/step3",
+			"style": {
+				"navigationStyle": "custom",
+				"navigationBarTitleText": "编辑内容(3/3)" //设置页面标题文字
+			}
+		},
+		{
+			"path": "pages/order/date",
+			"style": {}
+		},
+		{
+			"path": "pages/order/choose-time",
+			"style": {
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/order/choose-area",
+			"style": {
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/order/choose-seat",
+			"style": {
+				"navigationStyle": "custom"
+			}
+		},
+		{
+			"path": "pages/center/index",
+			"style": {
+				"enablePullDownRefresh": true,
+				// "navigationStyle": "custom",
+				"navigationBarTitleText": "预约记录" //设置页面标题文字
+			}
+			
+		},
+		{
+			"path": "pages/test/index",
+			"style": {
+
+			}
+			
+		}
+
+	],
+	"globalStyle": {
+		"navigationBarTextStyle": "white",
+		"navigationBarTitleText": "活动预约",
+		"navigationBarBackgroundColor": "#2F85FC",
+		"backgroundColor": "#FFFFFF"
+	}
+	// ,"topWindow": {
+	//     "path": "responsive/top-window.vue", // 指定 topWindow 页面文件
+	//     "style": {
+	//       "height": "44px"
+	//     }
+	//   }
+	,"leftWindow": {
+		"path": "responsive/left-window.vue", // 指定 leftWindow 页面文件
+		"style": {
+		  "width": "300px"
+		},
+		 "matchMedia": {
+		      "minWidth": "768" //生效条件，当窗口宽度大于768px时显示
+		}
+	  }
+	//   ,
+	//     "rightWindow": {
+	//       "path": "responsive/right-window.vue", // 指定 rightWindow 页面文件
+	//       "style": {
+	//         "width": "calc(100vw - 400px)" // 页面宽度
+	//       },
+	//       "matchMedia": {
+	//         "minWidth": 768 //生效条件，当窗口宽度大于768px时显示
+	//       }
+	//     }
+	
+
+
+}

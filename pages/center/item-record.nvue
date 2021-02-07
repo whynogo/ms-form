@@ -1,0 +1,229 @@
+<template>
+	<view class="cus-media-list u-card-wrap" >
+		<u-avatar class="uni-media-list-logo" :src="item.cover" :size="'large'"></u-avatar>
+		<view class="uni-media-list-body">
+			<view class="uni-media-list-text-top">
+				{{item.building}}
+				{{item.area}}
+			</view>
+			<view class="uni-media-list-text-bottom">
+				<text>{{getTime(item)}}</text>
+				<text>{{item.datetime}}</text>
+			</view>
+		</view>
+		<u-icon :name="getStateIcon()" :color="getStateColor()" size="56"></u-icon>
+	</view>
+</template>
+
+<script>
+	import moment from 'dayjs'
+	export default {
+		props: {
+			item: {
+				type: Object,
+				default: () => {
+					return {
+						building: '医学馆',
+						subTitle: '2020-05-15',
+						cover: 'http://pic2.sc.chinaz.com/Files/pic/pic9/202002/hpic2119_s.jpg',
+						during: 1.5,
+						datetime: "2020-01-25",
+						state:2
+					}
+				}
+			}
+		},
+		methods:{
+			getStateIcon(){
+				var ret=""
+				switch(this.item.state){
+					case 1:ret= "pushpin";break;
+					case 2:ret= "thumb-up";break;
+					case 6:ret= "close-circle";break;
+					default:
+						ret= "error-circle";break;
+				}
+				return ret
+			},
+			getStateColor(){
+				var ret=""
+				switch(this.item.state){
+					case 1:ret= "#73d00f";break;
+					case 2:ret= "#73d00f";break;
+					case 6:ret= "#572fd9";break;
+					default:
+						ret= "#d93d0d";break;
+				}
+				return ret
+			},
+			getTime(item){
+				return moment("2020-12-12 "+item.begin).format('HH:mm')+"-"+moment("2020-12-12 "+item.end).format('HH:mm')
+			}
+			
+		}
+	}
+</script>
+
+<style scoped lang="scss">
+	.u-card-wrap {
+		background-color: $u-bg-color;
+		padding: 1px;
+		margin-top:4px;
+		border-radius: 8px;
+		width:100%;
+	}
+
+	.banner {
+		height: 360upx;
+		overflow: hidden;
+		position: relative;
+		background-color: #ccc;
+	}
+
+	.banner-img {
+		width: 100%;
+	}
+
+	.banner-title {
+		max-height: 84upx;
+		overflow: hidden;
+		position: absolute;
+		left: 30upx;
+		bottom: 30upx;
+		width: 90%;
+		font-size: 32upx;
+		font-weight: 400;
+		line-height: 42upx;
+		color: white;
+		z-index: 11;
+	}
+
+	.uni-list {
+		background-color: #FFFFFF;
+		position: relative;
+		width: 100%;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.uni-list:after {
+		position: absolute;
+		z-index: 10;
+		right: 0;
+		bottom: 0;
+		left: 0;
+		height: 1px;
+		content: '';
+		-webkit-transform: scaleY(.5);
+		transform: scaleY(.5);
+		background-color: #c8c7cc;
+	}
+
+	.uni-list::before {
+		position: absolute;
+		z-index: 10;
+		right: 0;
+		top: 0;
+		left: 0;
+		height: 1px;
+		content: '';
+		-webkit-transform: scaleY(.5);
+		transform: scaleY(.5);
+		background-color: #c8c7cc;
+	}
+
+	.uni-list-cell {
+		position: relative;
+		display: flex;
+		flex-direction: row;
+		justify-content: space-between;
+		align-items: center;
+	}
+
+	.uni-list-cell-hover {
+		background-color: #eee;
+	}
+
+	.uni-list-cell::after {
+		position: absolute;
+		z-index: 3;
+		right: 0;
+		bottom: 0;
+		left: 30upx;
+		height: 1px;
+		content: '';
+		-webkit-transform: scaleY(.5);
+		transform: scaleY(.5);
+		background-color: #c8c7cc;
+	}
+
+	.uni-list .uni-list-cell:last-child::after {
+		height: 0upx;
+	}
+
+	/* 图文列表 */
+	.cus-media-list {
+		padding: 22upx 30upx;
+		box-sizing: border-box;
+		display: flex;
+		width: 100%;
+		flex-direction: row;
+	}
+
+	.uni-navigate-right.uni-media-list {
+		padding-right: 74upx;
+	}
+
+	.uni-pull-right {
+		flex-direction: row-reverse;
+	}
+
+	.uni-pull-right>.uni-media-list-logo {
+		margin-right: 0upx;
+		margin-left: 20upx;
+	}
+
+	.uni-media-list-logo image {
+		height: 100%;
+		width: 100%;
+	}
+
+
+	.uni-media-list-text-bottom {
+		width: 100%;
+		line-height: 30upx;
+		font-size: 26upx;
+		color: #8f8f94;
+	}
+
+	.uni-media-list-logo {
+		width: 180upx;
+		height: 140upx;
+		margin-right: 20upx;
+	}
+
+	.uni-media-list-body {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		justify-content: space-between;
+		align-items: flex-start;
+		overflow: hidden;
+		height: auto;
+	}
+
+	.uni-media-list-text-top {
+		width: 100%;
+		line-height: 36upx;
+		font-size: 30upx;
+		height: 74upx;
+		font-size: 28upx;
+		overflow: hidden;
+	}
+
+	.uni-media-list-text-bottom {
+		display: flex;
+		flex-direction: row;
+		justify-content: space-between;
+	}
+</style>

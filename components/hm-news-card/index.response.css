@@ -1,0 +1,147 @@
+.hm-news-card {
+  display: flex;
+  align-items: center;
+  flex-direction: row;
+  justify-content: center;
+  width: 100%;
+  height: 20%;
+}
+
+.container {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: row;
+  height: 100%;
+  box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.box {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  background-color: #ffffff;
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0px 1px 6px 1px rgba(0, 0, 0, 0.05));
+}
+
+.img {
+  width: 692rpx;
+  height: 250rpx;
+  overflow: hidden;
+}
+
+.title {
+  width: 100%;
+  margin-top: 26rpx;
+  margin-left: 38rpx;
+  max-width: 630rpx;
+  height: 44rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 44rpx;
+  letter-spacing: 0px;
+  white-space: pre;
+  color: #030303;
+  font-family: Helvetica;
+  font-size: 36rpx;
+  font-weight: normal;
+}
+
+.submain {
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  margin-top: 14rpx;
+  margin-left:11rpx;
+  justify-content:flex-end;
+}
+
+.author {
+  margin-right: 38rpx;
+  width: 300rpx;
+  height: 28rpx;
+  line-height: 28rpx;
+  white-space: nowrap;
+  color: #b8e986;
+  font-family: Helvetica;
+  font-size: 24rpx;
+  font-weight: normal;
+}
+
+.date {
+  margin-right: 38rpx;
+  width: 100%;
+  height: 28rpx;
+  line-height: 28rpx;
+  white-space: pre;
+  color: #c7c7cd;
+  font-family: Helvetica;
+  font-size: 24rpx;
+  font-weight: normal;
+  text-align: right;
+}
+
+.summary {
+  max-width: 630rpx;
+  margin-top: 16rpx;
+  margin-left: 38rpx;
+  margin-right: 38rpx;
+  width: 100%;
+  height: auto;
+  max-height:88rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 44rpx;
+  letter-spacing: 0px;
+  white-space: pre-wrap;
+  color: #8f8e94;
+  font-family: Helvetica;
+  font-size: 28rpx;
+  font-weight: normal; 
+}
+
+.row_2 {
+  display: flex;
+  margin-top: 10rpx;
+  border-top-width: 1px;
+  border-top-style: solid;
+  border-top-color: rgba(239, 239, 244, 1);
+  width: 100%;
+  height: 8rpx;
+}
+
+.ft {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  margin: 5rpx;
+  padding-right: 48rpx;
+  padding-left: 40rpx;
+  width: 100%;
+}
+
+.comments {
+  width: 182rpx;
+  height: 24rpx;
+  line-height: 24rpx;
+  letter-spacing: 1.67px;
+  white-space: pre;
+  color: #8f8e94;
+  font-family: Helvetica;
+  font-size: 20rpx;
+  font-weight: normal;
+}
+
+.likes {
+  width: 126rpx;
+  height: 24rpx;
+  line-height: 24rpx;
+  letter-spacing: 1.67px;
+  white-space: pre;
+  color: #8f8e94;
+  font-family: Helvetica;
+  font-size: 20rpx;
+  font-weight: normal;
+}

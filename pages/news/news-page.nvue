@@ -1,0 +1,569 @@
+<template>
+	<view class="page-news">
+		<scroll-view class="listview" scroll-y="true" @scrolltolower="onScrollLower">
+			<view>
+				<uni-refresh class="refresh" @refresh="onrefresh" @pullingdown="onpullingdown" :display="refreshing ? 'show' : 'hide'">
+					<div class="refresh-view">
+						<image class="refresh-icon" :src="refreshIcon" :style="{width: (refreshing || pulling) ? 0: '32px'}" :class="{'refresh-icon-active': refreshFlag}"></image>
+						<uni-load-more v-if="refreshing" class="loading-icon" status="loading" :contentText="loadingMoreText"></uni-load-more>
+						<text class="loading-text">{{refreshText}}</text>
+					</div>
+				</uni-refresh>
+				<uni-cell v-for="(item, index) in dataList" :key="item.id">
+					<news-item ref="itemView" :newsItem="item" @close="closeItem(index)" @click="goDetail(item)" @cardRemove="onCardRemove"
+					 @cardModify="onCardModify" @cardDownload="onCardDownload" @cardPoster="onCardPoster" @cardActive="onCardActive"></news-item>
+				</uni-cell>
+				<uni-load-more :status="status()" :showIcon="true" @clickLoadMore="onScrollLower"></uni-load-more>
+			</view>
+		</scroll-view>
+		<no-data v-if="isNoData||(2==nid&&!isLogin)" class="no-data" @retry="reloadData" @askLogin="askLogin" :needLogin="2==nid" :isLogin="isLogin"></no-data>
+	</view>
+</template>
+
+<script>
+	function getQrUrl(id) {
+		return "https://api.askxyz.top/rev/#/pages/detail/index?v=1&id=" + id
+	}
+	import {
+		wxOssUploadFile
+	} from '@/common/wx-oss-upload.js';
+	const jsonexport = require("jsonexport/dist")
+	import {
+		getSharePoster
+	} from '@/js_sdk/QS-SharePoster/QS-SharePoster.js'
+	import {
+		friendlyDate,
+		convertUTCTimeToLocalTime,
+		tomorrow,
+		today,
+		confirmDo,
+		isEmpty,
+		toAsync,
+		orderCall,
+	} from '@/common/util.js';
+	import {
+		isLogin,
+		getUserInfo,
+		loginTo,
+		naviTo
+	} from '@/common/route.js';
+	import {
+		getRevList,
+		downloadOrderList
+	} from '@/api/main.js';
+	import {
+		delOne
+	} from '@/api/event.js';
+
+	import uniCell from '@/components/uni-cell.vue';
+	import uniRefresh from '@/components/uni-refresh.vue';
+	import uniLoadMore from '@/components/uni-load-more.vue';
+	import noData from '@/components/nodata.nvue';
+	import newsItem from '@/pages/news/news-item.nvue';
+
+	var that = null
+	export default {
+		components: {
+			uniCell,
+			uniRefresh,
+			uniLoadMore,
+			noData,
+			newsItem
+		},
+		props: {
+			nid: {
+				type: [Number, String],
+				default: ''
+			}
+		},
+		data() {
+			return {
+				more: "more",
+				temp: {},
+				isLogin: isLogin(),
+				total: 0,
+				pageSize: 5,
+				listQuery: [{
+						page_index: 1,
+						page_size: 7,
+						filters: [{
+								fn: 'state',
+								fv: '1'
+							},
+							{
+								fn: 'end',
+								fv: today(),
+								op: '>='
+							}
+						],
+						sorter: [{
+							fn: '',
+							order: '-'
+						}]
+					},
+					{
+						page_index: 1,
+						page_size: 7,
+						filters: [{
+								fn: 'state',
+								fv: '1'
+							},
+							{
+								fn: 'end',
+								fv: today(),
+								op: '<'
+							}
+						],
+						sorter: [{
+							fn: '',
+							order: '-'
+						}]
+					},
+					{
+						page_index: 1,
+						page_size: 7,
+						filters: [{
+							fn: 'editor',
+							fv: null != getUserInfo() ? getUserInfo().user_id : null
+						}],
+						sorter: [{
+							fn: '',
+							order: '-'
+						}]
+					}
+				],
+				dataList: [],
+				navigateFlag: false,
+				pulling: false,
+				refreshing: false,
+				refreshFlag: false,
+				refreshText: "",
+				isLoading: false,
+				loadingText: '加载中...',
+				isNoData: false,
+				pulling: false,
+				angle: 0,
+				loadingMoreText: {
+					contentdown: '',
+					contentrefresh: '',
+					contentnomore: ''
+				},
+				refreshIcon: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAMAAABg3Am1AAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAB5QTFRFcHBw3Nzct7e39vb2ycnJioqK7e3tpqam29vb////D8oK7wAAAAp0Uk5T////////////ALLMLM8AAABxSURBVHja7JVBDoAgDASrjqj//7CJBi90iyYeOHTPMwmFZrHjYyyFYYUy1bwUZqtJIYVxhf1a6u0R7iUvWsCcrEtwJHp8MwMdvh2amHduiZD3rpWId9+BgPd7Cc2LIkPyqvlQvKxKBJ//Qwq/CacAAwDUv0a0YuKhzgAAAABJRU5ErkJggg=="
+			}
+		},
+		created() {
+			that = this
+			this.pullTimer = null;
+			this._isWidescreen = false;
+			// #ifdef H5
+			var mediaQueryOb = uni.createMediaQueryObserver(this)
+			mediaQueryOb.observe({
+				minWidth: 768
+			}, matches => {
+				//this._isWidescreen = matches;
+			})
+
+			// #endif
+		},
+		methods: {
+			status() {
+				if (this.isLoading)
+					return "loading"
+				else if (this.dataList.length < this.total)
+					return "more"
+				else
+					return "noMore"
+
+			},
+			loadData(refresh) {
+				if (this.isLoading) {
+					return;
+				}
+
+				this.isLoading = true;
+				this.isNoData = false;
+
+				var startTime = new Date();
+
+
+				//两个不同的页面分开使用
+				getRevList(this.listQuery[this.nid]).then(rsp => {
+					console.log("---getRevList rsp=", rsp)
+					var endTime = new Date();
+					//console.log("request time " + new Date(endTime - startTime).getTime());
+					const data = rsp;
+					this.isNoData = (data.numRows <= 0);
+					this.total = rsp.data.total
+
+					const data_list = rsp.data.rows.map((item) => {
+						return {
+							id: item.id,
+							date: "开始于：" + convertUTCTimeToLocalTime(item.begin),
+							pure_date: convertUTCTimeToLocalTime(item.begin),
+							title: item.name,
+							image: item.image,
+							source: item.depart_name,
+							brief: item.brief,
+							rev_count: item.rev_count,
+							post_id: item.id,
+							canOperation: this.nid == 2,
+							isOperating: false,
+							kind:item.kind
+						};
+					});
+
+					if(0==data_list.length)
+						this.listQuery[this.nid].page_index--
+					//将新的分页获得的数据加入列表
+					this.dataList = this.dataList.concat(data_list);
+
+					console.log("L,total-->", this.dataList.length, this.total)
+					//无论如何都停止这个动画	
+					uni.stopPullDownRefresh();
+
+					// if (this.dataList.length > 0 && this._isWidescreen && this.dataList.length <= 10) {
+					// 	this.goDetail(this.dataList[0]);
+					// }
+
+					this.isLoading = false;
+					if (refresh) {
+						this.refreshing = false;
+						this.refreshFlag = false;
+						this.refreshText = "已刷新";
+						if (this.pullTimer) {
+							clearTimeout(this.pullTimer);
+						}
+						this.pullTimer = setTimeout(() => {
+							this.pulling = false;
+						}, 1000);
+					}
+
+					if (this.dataList.length == 0) {
+						this.isNoData = true;
+					}
+				}).catch(err => {
+					console.log('---fail at', err);
+					if (this.dataList.length == 0) {
+						this.isNoData = true;
+					}
+				})
+
+			},
+			loadMore(e) {
+				this.listQuery[this.nid].page_index = this.listQuery[this.nid].page_index + 1
+				this.loadData();
+				console.log("loadMore->", this.listQuery[this.nid].page_index)
+			},
+			reloadData() {
+				console.log("reloadData->", this.nid)
+				this.isLoading=false
+				this.dataList.length = 0
+				this.listQuery[this.nid].page_index = 1
+				this.loadData();
+			},
+			clear() {
+				this.dataList.length = 0;
+			},
+			goDetail(detail) {
+				console.log(detail)
+				//这里必须是relaunch
+				if(0==detail.kind)
+					uni.reLaunch({
+						url: '/pages/detail/index?id=' + detail.post_id
+					});
+				else
+					uni.navigateTo({
+						url: '/pages/order/choose-area?id=' + detail.post_id
+					});					
+			},
+			refreshData() {
+				if (this.isLoading) {
+					return;
+				}
+				this.pulling = true;
+				this.refreshing = true;
+				this.refreshText = "正在刷新...";
+				this.loadData(true);
+			},
+			onScrollLower() {
+				console.log("onScrollLower")
+				this.loadMore()
+			},
+			onrefresh(e) {
+				this.refreshData();
+			},
+			onpullingdown(e) {
+				if (this.refreshing) {
+					return;
+				}
+
+				// var angle = (e.pullingDistance) / e.viewHeight * 180;
+				// if (angle > 180) {
+				// 	angle = 180;
+				// }
+				// tab.angle = angle;
+
+				this.pulling = false;
+				if (Math.abs(e.pullingDistance) > Math.abs(e.viewHeight)) {
+					this.refreshFlag = true;
+					this.refreshText = "释放立即刷新";
+				} else {
+					this.refreshFlag = false;
+					this.refreshText = "下拉可以刷新";
+				}
+			},
+			newGuid() {
+				let s4 = function() {
+					return (65536 * (1 + Math.random()) | 0).toString(16).substring(1);
+				}
+				return (s4() + s4() + "-" + s4() + "-4" + s4().substr(0, 3) + "-" + s4() + "-" + s4() + s4() + s4()).toUpperCase();
+			},
+			onCardRemove(item) {
+				console.log("cardRemove", item)
+				Array.prototype.remove = function(val) {
+					var index = this.indexOf(val);
+					if (index > -1) {
+						this.splice(index, 1);
+					}
+				};
+				confirmDo("确定删除这个活动吗？删除后不能恢复。", rsp => {
+					delOne(item.id).then(rsp => {
+						if (0 == rsp.code)
+							this.dataList.remove(this.dataList.find(it => {
+								return it.id == item.id
+							}))
+					})
+
+				})
+			},
+			onCardModify(item) {
+				console.log("cardModify", item)
+				loginTo("/pages/edit/step1", {
+					id: item.id
+				})
+			},
+			onCardDownload(item) {
+				console.log("cardDownload", item)
+
+				var fun_download = toAsync(this, function(that, resolve, reject) {
+					uni.showLoading({
+						title: '下载数据中...',
+						mask: true
+					})
+
+					downloadOrderList({
+						id: item.id
+					}).then(rsp => {
+						if (0 == rsp.code) {
+							that.temp.records = rsp.data.rows
+							if (rsp.data.numRows > 0)
+								resolve(true)
+							else
+								that.fail("暂时还没有人预约")
+						} else {
+							that.fail("下载数据失败")
+						}
+						uni.hideLoading()
+					})
+				})
+
+				var fun_save = toAsync(this, function(that, resolve, reject) {
+					wx.showLoading({
+						title: '处理数据中...',
+						mask: true
+					})
+
+					const options = {
+						headers: ["name", "extra.name", "user_name", "mobile", "date", "extra.datetime", "extra.clazz", "state","create_time", "record_user"],
+						rename: ["活动名称", "报名名称", "用户名", "手机", "预约日期", "预约时间", "其它", "预约状态", "下单时间", "id"],
+					}
+					jsonexport(that.temp.records, options, function(err, csv) {
+						if (err) return console.error(err);
+						//		console.log(csv);
+						var fs = wx.getFileSystemManager()
+						var localFilename = `${wx.env.USER_DATA_PATH}/${item.brief}.csv`
+						that.temp.filename = localFilename
+						fs.writeFileSync(localFilename, csv, 'utf8')
+						wxOssUploadFile(localFilename, "/reservation/downloads", function(ret) {
+							console.log("======上传结果：", ret)
+							wx.setClipboardData({
+								data: ret.url,
+								success: function(res) {
+									wx.showModal({
+										title: '提示',
+										content: '文件名称已经复制到粘贴板，请在浏览器中下载',
+										success: function(res) {
+											if (res.confirm) {
+												console.log('确定')
+											} else if (res.cancel) {
+												console.log('取消')
+											}
+										}
+									})
+								}
+							});
+							resolve(true)
+							wx.hideLoading()
+						}, err => {
+							console.log(err)
+							wx.hideLoading()
+							reject()
+							throw Error("数据上传失败，请重试!")
+						})
+					});
+
+				})
+				orderCall(fun_download, fun_save)
+				console.log("temp filename=>", that.temp.filename)
+
+
+			},
+			onCardPoster(item) {
+				console.log("cardPoster", item)
+				var qr = {
+					qs: 0.4,
+					qh: 0.86,
+					background: item.image,
+					title: item.title,
+					datetime: item.pure_date,
+					qrText: getQrUrl(item.id),
+					bottomText: item.source
+				}
+				naviTo("/pages/news/poster", qr)
+			},
+			onCardActive(item, view) {
+				console.log("cardActive", item)
+				this.dataList.forEach(it => {
+					//console.log("D->", it.id, item.id)
+					if (it.id != item.id) {
+						it.isOperating = false
+					}
+				})
+				//为了解决小程序监听失败的问题，直接来操作view
+				// #ifdef MP-WEIXIN
+				this.$refs.itemView.forEach(it => {
+					if (it != view)
+						it.quitOperation()
+				})
+				// #endif
+			},
+			disactiveCard() {
+				this.dataList.forEach(it => {
+					it.isOperating = false
+				})
+			},
+			quitOperation() {
+				console.log("cardQuitAll")
+				this.dataList.forEach(it => {
+					it.isOperating = false
+				})
+				//为了解决小程序监听失败的问题，直接来操作view
+				// #ifdef MP-WEIXIN
+				if (!isEmpty(this.$refs.itemView))
+					this.$refs.itemView.forEach(it => {
+						it.quitOperation()
+					})
+				// #endif
+			},
+			askLogin() {
+				loginTo("/pages/news/index")
+			}
+
+		}
+	}
+</script>
+
+<style scoped>
+	.no-data {
+		flex: 1;
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		z-index: 10;
+	}
+
+	.page-news {
+		flex: 1;
+		flex-direction: column;
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		height: 100%;
+	}
+
+	.listview {
+		height: auto;
+		position: absolute;
+		left: 0;
+		top: 0;
+		right: 0;
+		bottom: 0;
+		overflow-y: auto;
+		/* #ifndef APP-NVUE */
+		display: flex;
+		flex-direction: column;
+		/* #endif */
+		/* #ifndef MP-ALIPAY */
+		flex-direction: column;
+		/* #endif */
+	}
+
+	.refresh {
+		justify-content: center;
+	}
+
+	.refresh-view {
+		/* #ifndef APP-NVUE */
+		display: flex;
+		/* #endif */
+		width: 750rpx;
+		height: 64px;
+		flex-direction: row;
+		flex-wrap: nowrap;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.refresh-icon {
+		width: 32px;
+		height: 32px;
+		transition-duration: .5s;
+		transition-property: transform;
+		transform: rotate(0deg);
+		transform-origin: 15px 15px;
+	}
+
+	.refresh-icon-active {
+		transform: rotate(180deg);
+	}
+
+	.loading-icon {
+		width: 28px;
+		height: 28px;
+		margin-right: 5px;
+		color: gray;
+	}
+
+	.loading-text {
+		margin-left: 2px;
+		font-size: 16px;
+		color: #999999;
+	}
+
+	.loading-more {
+		align-items: center;
+		justify-content: center;
+		padding-top: 14px;
+		padding-bottom: 14px;
+		text-align: center;
+	}
+
+	.loading-more-text {
+		font-size: 16px;
+		color: #999;
+	}
+</style>

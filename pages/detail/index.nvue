@@ -1,0 +1,378 @@
+<template>
+	<view class="content" >
+		<view class="banner" auto-focus >
+			<image class="banner-img" :src="banner.image" @tap="onPreview"></image>
+			<view class="title-area">
+				<text class="title-text">{{banner.title}}</text>
+			</view>
+		</view>
+		<view class="article-meta">
+			<text class="article-meta-text article-text">主办单位：</text>
+			<text class="article-meta-text article-author">{{banner.source}}</text>
+		</view>
+		<view class="article-meta">
+			<text class="article-meta-text article-text">活动时间：</text>
+			<text class="article-meta-text article-time">{{banner.datetime}}</text>
+		</view>
+		<view class="article-meta">
+			<text class="article-meta-text article-text">活动地址：</text>
+			<text class="article-meta-text article-time">{{banner.location}}</text>
+		</view>
+		<view class="article-content">
+			<rich-text :nodes="content" style="font-size: 15px;"></rich-text>
+		</view>
+		<movable-area class="my-fixed-box">
+			<movable-view v-if="is_rev" class="fixed-button" direction="all" :inertia="true">
+				<slot> <button v-if="!is_expired" type="primary" style="width: 80%;" @click="signDown(banner)">{{fail_prompt}}</button></slot>
+				<slot> <button v-if="is_expired" type="default" disabled style="width: 80%;" >活动已过期</button></slot>
+			</movable-view>	
+			<movable-view v-if="is_rev||is_user_expired" class="fixed-button" style="margin-top: 48px;"direction="all" :inertia="true">
+			<view class="rev-text" v-if="has_rev_info" v-html="rev_info"  >  </view> 
+			</movable-view>
+			<movable-view v-if="!is_rev" class="fixed-button" direction="all" :inertia="true">
+				<slot> <button v-if="!is_expired&&!is_user_expired" type="warn" style="width: 80%;" @click="signup(banner)">立即报名</button></slot>
+				<slot> <button v-if="is_user_expired" style="width: 80%; background-color: #F0AD4E;" @click="signDown(banner)">预约过期，需要先取消</button></slot>
+				<slot> <button v-if="is_expired" type="default" disabled style="width: 80%;" >活动已过期</button></slot>
+			</movable-view>
+		</movable-area>
+		<view class="comment-wrap"></view>
+	</view>
+</template>
+
+<script>
+	var _this;
+	const Base64 = require("../../common/base64.js").Base64;
+	import htmlParser from '@/common/html-parser'
+	import {
+		getRevContent, isUserRev, cancelOrder
+	} from '@/api/main.js';
+	import{
+		loginTo, isLogin, 
+	}from '@/common/route.js'
+	import {
+		convertUTCTimeToLocalTime, convertUTCTimeToLocalDate, reloadToast, confirmCancel, isEmpty, closeTo, toAsync, orderCall, successToast
+	} from '@/common/util.js';
+	const FAIL_CONTENT = '<p>获取信息失败1</p>';
+
+	function parseImgs(nodes) {
+		nodes.forEach(node => {
+			if (
+				node.name === 'img' &&
+				node.attrs &&
+				node.attrs['data-img-size-val']
+			) {
+				const sizes = node.attrs['data-img-size-val'].split(',')
+				const width = uni.upx2px(720 * 0.9)
+				const height = parseInt(width * (sizes[1] / sizes[0]))
+				node.attrs.style = `width:${width};height:${height};`
+			}
+			if (Array.isArray(node.children)) {
+				parseImgs(node.children)
+			}
+		})
+		return nodes
+	}
+
+	export default {
+		data() {
+			return {
+				has_rev_info:false,
+				rev_info:'<i>您已预约在：2021-10-31 15:00</i>',
+				images:[],
+				form:{
+					id:'',
+					kind:0,
+					depart:''
+				},
+				is_rev :false, 
+				is_expired:false,
+				is_user_expired:false,
+				fail_prompt:'取消预约',
+				banner: {},
+				content: []
+			}
+		},
+		onShareAppMessage() {
+			return {
+				title: this.banner.title,
+				path: '/pages/detail/detail?query=' + JSON.stringify(this.banner)
+			}
+		},
+		mounted(){
+			_this=this
+		},
+		onLoad(option) {
+			// 目前在某些平台参数会被主动 decode，暂时这样处理。
+			this.form.id=option.id
+			//注册成功返回时会有空的情况
+			if(isEmpty(option.id))
+				closeTo("/pages/news/index")
+			else
+				this.getDetail(option.id);
+			
+			//uni.setStorageSync('setUserData', null); //存入缓存
+		},
+		onShareAppMessage(res) {
+			return {
+				title:this.banner.title,
+				path:"/pages/detail/index?id="+this.form.id,
+				//imageUrl:this.banner.image,
+				// desc:this.banner.datetime,
+				//content:this.banner.source,
+				success(res){
+					uni.showToast({
+						title:'分享成功'
+					})
+				},
+				fail(res){
+					uni.showToast({
+						title:'分享失败',
+						icon:'none'
+					})
+				}
+			}
+		},
+		methods: {
+			getDetail() {
+				var fun_getContent=toAsync(this,function(that,resolve,reject){
+					getRevContent({
+						id: that.form.id
+					}).then(rsp => {
+
+						let content = FAIL_CONTENT
+						if (rsp.code == 0) {
+							//此句不可少，未知bug
+						//	rsp.data.content="PHAgc3R5bGU9InBhZGRpbmc6IDBweDsgbWFyZ2luOiAwcHg7IHRleHQtaW5kZW50OiAyZW07IHRleHQtYWxpZ246IGNlbnRlcjsiPgk8L3A+PHAgc3R5bGU9InBhZGRpbmc6IDBweDsgbWFyZ2luOiAwcHg7IHRleHQtaW5kZW50OiAyZW07IHRleHQtYWxpZ246IGNlbnRlcjsiPgk8c3Ryb25nIHN0eWxlPSJmb250LXNpemU6IDI4cHQ7Ij7kuLrkuobmnKrmnaXnmoTpooboopY8L3N0cm9uZz48L3A+PHAgc3R5bGU9InBhZGRpbmc6IDBweDsgbWFyZ2luOiAwcHg7IHRleHQtaW5kZW50OiAyZW07IHRleHQtYWxpZ246IGNlbnRlcjsiPgk8L3A+PHAgc3R5bGU9InBhZGRpbmc6IDBweDsgbWFyZ2luOiAwcHg7IHRleHQtaW5kZW50OiAyZW07IHRleHQtYWxpZ246IGNlbnRlcjsiPgk8L3A+PHAgc3R5bGU9InBhZGRpbmc6IDBweDsgbWFyZ2luOiAwcHg7IHRleHQtaW5kZW50OiAyZW07IHRleHQtYWxpZ246IGxlZnQ7Ij4J5Lik5aSp55qE5rS75Yqo5pe26Ze077yM5Y+v6LCT4oCc5paH5q2m5Y+M5YWo4oCd77ya5Y+C5LiO5rS75Yqo55qE5biI55Sf5LiN5LuF5pyJ5bm46IGG5ZCs5p2l6Ieq5b+D55CG5ZKo6K+i5biI6JSh5piK6ICB5biI55qE5YWz5LqO44CK6aKG5a+85Yqb5Z+55YW75LiO5oCd57u05a+85Zu+55qE5L2/55So44CL5LiT6aKY6K6y5bqn77yM5pu06IO95Zyo5YWt5Liq5Li76aKYJm5ic3A75ouT5bGV5rS75Yqo5Lit5a6M5oiQ4oCc5oCd6ICD4oCU5Yid5o6i4oCU5Y+N5oCd4oCU5YaN5o6i4oCU6aKG5oKf4oCd55qE6K6k55+l5o+Q5Y2H6L+H56iL77yM6I6355uK6Imv5aSa44CC5pys5qyh5rS75Yqo55qE5oiQ5Yqf5q2j5Zyo5LqO6K6p5Y+C5LiO6ICF5L2T6aqM6L+H56iL77yM5a2m5Lya6IGG5ZCs77yM5pWi5LqO6KGo6L6+77yM6Z2i5a+55oiQ6LSl77yM6aKG5oKfJm5ic3A75oiQ6ZW/77yBPC9wPjxwIHN0eWxlPSJwYWRkaW5nOiAwcHg7IG1hcmdpbjogMHB4OyB0ZXh0LWluZGVudDogMmVtOyI+CeWPguS4juacrOasoea0u+WKqOeahOWtqeWtkOmDveadpeiHquiKseWfjuagoeWMuuS4jeWQjOeahOePree6p++8jOW9vOatpOS4jeW5tueGn+aCieOAguS9hue7j+i/h+S4pOWkqeeahOmAmuWKm+WQiOS9nOS4juacieaViOayn+mAmu+8jOS7luS7rOaUtuiOt+iHqui6q+aIkOmVv+eahOWQjOaXtu+8jOabtOWwhui/meS7veecn+aMmueahOWbnuW/huePjeiXj+S6juW/g+OAgiZuYnNwO+WtqeWtkOS7rOWcqOa0u+WKqOe7k+adn+aXtue6t+e6t+ihqOi+vuS6huWvueWvvOW4iOS4jumYn+WPi+eahOS4jeiIje+8jOaPkOWHuuKAnOWKoOWcuuKAneeahOimgeaxguOAgumCo+WwseiuqeaIkeS7rOS4gOi1t+WKquWKm++8jOe7p+e7reWFheWunuiHquW3se+8jOaIkOS4uuabtOajkueahOiHquW3se+8jOacn+W+heS4i+asoeeahOiBmuS8muWQp++8gTwvcD48cD48YnI+PC9wPjxwPjxicj48L3A+PHA+PGltZyBzcmM9Imh0dHA6Ly9taWFvLWRldi5vc3MtY24tc2hlbnpoZW4uYWxpeXVuY3MuY29tL3RpbnlNQ0UvYTUyYjRkYmNlYTM0ZTQ5YmU0YWNjOTMxYTk5YmNkYjQuanBnP0V4cGlyZXM9MzMzMjA1MTc5MSZhbXA7T1NTQWNjZXNzS2V5SWQ9TFRBSTRGZGg3RE5UODM3MnNOajVqbWp0JmFtcDtTaWduYXR1cmU9RVhVMDFYZUdqaGVNQ3V1bzZLMnBuR1dGMjE0JTNEIiBoZWlnaHQ9ImF1dG8iIHdpZHRoPSIxMDAlIj48L3A+PHA+PGJyPjwvcD48cD48c3BhbiBzdHlsZT0iZm9udC1mYW1pbHk6IFNpbVN1biwgJnF1b3Q7QXJpYWwgTmFycm93JnF1b3Q7OyBmb250LXNpemU6IDE0cHg7IGJhY2tncm91bmQtY29sb3I6IHJnYigyNDgsIDI0OCwgMjQ4KTsiPuWcqOiKseWfjuagoeWMuuiBmumbhuS6hui/keeZvuS9jeW4iOeUn++8jOWwhuKAnOWwkeW5tOW/l++8jOaVouaLheW9k+KAneW5v+W3nuW4guWkqeays+S4reWtpuWtpueUn+mihuiiljwvc3Bhbj4JPGEgc3R5bGU9ImNvbG9yOiByZWQ7IGZvbnQtZmFtaWx5OiBTaW1TdW4sICZxdW90O0FyaWFsIE5hcnJvdyZxdW90OzsgZm9udC1zaXplOiAxNHB4OyBiYWNrZ3JvdW5kLWNvbG9yOiByZ2IoMjQ4LCAyNDgsIDI0OCk7Ij48dT7ln7norq08L3U+PC9hPgk8c3BhbiBzdHlsZT0iZm9udC1mYW1pbHk6IFNpbVN1biwgJnF1b3Q7QXJpYWwgTmFycm93JnF1b3Q7OyBmb250LXNpemU6IDE0cHg7IGJhY2tncm91bmQtY29sb3I6IHJnYigyNDgsIDI0OCwgMjQ4KTsiPuiQpea0u+WKqOi/m+ihjOWIsOW6leOAgjwvc3Bhbj48aW1nIHNyYz0iaHR0cHM6Ly9taWFvLXNoYXJlLm9zcy1jbi1zaGVuemhlbi5hbGl5dW5jcy5jb20vcmVzZXJ2YXRpb24vMTYwNjMzNDM1NDIzN183ZmEyOWY3ZS5wbmciIGFsdD0i5Zu+5YOPIiB3aWR0aD0iMTAwJSI+PC9wPg=="
+						//	rsp.data.content="PHAgc3R5bGU9InBhZGRpbmc6IDBweDsgbWFyZ2luOiAwcHg7IGZvbnQtZmFtaWx5OiBTaW1TdW4sICdBcmlhbCBOYXJyb3cnOyBmb250LXNpemU6IDE0cHg7IGJhY2tncm91bmQtY29sb3I6ICNmOGY4Zjg7IHRleHQtaW5kZW50OiAyZW07IHRleHQtYWxpZ246IGNlbnRlcjsiPjxiciAvPjxzcGFuIHN0eWxlPSJmb250LXNpemU6IDI4cHQ7IGNvbG9yOiAjMGUwMGZmOyI+PHN0cm9uZz7kuLrkuobmnKrmnaXnmoTpooboopY8L3N0cm9uZz48L3NwYW4+PGJyIC8+PGJyIC8+PGJyIC8+5Lik5aSp55qE5rS75Yqo5pe26Ze077yM5Y+v6LCTJmxkcXVvO+aWh+atpuWPjOWFqCZyZHF1bzvvvJrlj4LkuI7mtLvliqjnmoTluIjnlJ/kuI3ku4XmnInlubjogYblkKzmnaXoh6rlv4PnkIblkqjor6LluIjolKHmmIrogIHluIjnmoTlhbPkuo7jgIrpooblr7zlipvln7nlhbvkuI7mgJ3nu7Tlr7zlm77nmoTkvb/nlKjjgIvkuJPpopjorrLluqfvvIzmm7Tog73lnKjlha3kuKrkuLvpopgg5ouT5bGV5rS75Yqo5Lit5a6M5oiQJmxkcXVvO+aAneiAgyZtZGFzaDvliJ3mjqImbWRhc2g75Y+N5oCdJm1kYXNoO+WGjeaOoiZtZGFzaDvpoobmgp8mcmRxdW8755qE6K6k55+l5o+Q5Y2H6L+H56iL77yM6I6355uK6Imv5aSa44CC5pys5qyh5rS75Yqo55qE5oiQ5Yqf5q2j5Zyo5LqO6K6p5Y+C5LiO6ICF5L2T6aqM6L+H56iL77yM5a2m5Lya6IGG5ZCs77yM5pWi5LqO6KGo6L6+77yM6Z2i5a+55oiQ6LSl77yM6aKG5oKfIOaIkOmVv++8gTwvcD4KPHAgc3R5bGU9InBhZGRpbmc6IDBweDsgbWFyZ2luOiAwcHg7IGZvbnQtZmFtaWx5OiBTaW1TdW4sICdBcmlhbCBOYXJyb3cnOyBmb250LXNpemU6IDE0cHg7IGJhY2tncm91bmQtY29sb3I6ICNmOGY4Zjg7IHRleHQtaW5kZW50OiAyZW07Ij7lj4LkuI7mnKzmrKHmtLvliqjnmoTlranlrZDpg73mnaXoh6roirHln47moKHljLrkuI3lkIznmoTnj63nuqfvvIzlvbzmraTkuI3lubbnhp/mgonjgILkvYbnu4/ov4fkuKTlpKnnmoTpgJrlipvlkIjkvZzkuI7mnInmlYjmsp/pgJrvvIzku5bku6zmlLbojrfoh6rouqvmiJDplb/nmoTlkIzml7bvvIzmm7TlsIbov5nku73nnJ/mjJrnmoTlm57lv4bnj43ol4/kuo7lv4PjgIIg5a2p5a2Q5Lus5Zyo5rS75Yqo57uT5p2f5pe257q357q36KGo6L6+5LqG5a+55a+85biI5LiO6Zif5Y+L55qE5LiN6IiN77yM5o+Q5Ye6JmxkcXVvO+WKoOWcuiZyZHF1bzvnmoTopoHmsYLjgILpgqPlsLHorqnmiJHku6zkuIDotbfliqrlipvvvIznu6fnu63lhYXlrp7oh6rlt7HvvIzmiJDkuLrmm7Tmo5LnmoToh6rlt7HvvIzmnJ/lvoXkuIvmrKHnmoTogZrkvJrlkKfvvIE8L3A+CjxiciAvPjxiciAvPjxpbWcgc3JjPSJodHRwOi8vbWlhby1kZXYub3NzLWNuLXNoZW56aGVuLmFsaXl1bmNzLmNvbS90aW55TUNFL2E1MmI0ZGJjZWEzNGU0OWJlNGFjYzkzMWE5OWJjZGI0LmpwZz9FeHBpcmVzPTMzMzIwNTE3OTEmT1NTQWNjZXNzS2V5SWQ9TFRBSTRGZGg3RE5UODM3MnNOajVqbWp0JmFtcDtTaWduYXR1cmU9RVhVMDFYZUdqaGVNQ3V1bzZLMnBuR1dGMjE0JTNEIiBhbHQ9IiIgd2lkdGg9IjEwMCUiIGhlaWdodD0iYXV0byIgLz48YnIgLz48YnIgLz48c3BhbiBzdHlsZT0iZm9udC1mYW1pbHk6IFNpbVN1biwgJ0FyaWFsIE5hcnJvdyc7IGZvbnQtc2l6ZTogMTRweDsgdGV4dC1pbmRlbnQ6IDI4cHg7IGJhY2tncm91bmQtY29sb3I6ICNmOGY4Zjg7Ij7lnKjoirHln47moKHljLrogZrpm4bkuobov5Hnmb7kvY3luIjnlJ/vvIzlsIYmbGRxdW875bCR5bm05b+X77yM5pWi5ouF5b2TJnJkcXVvO+W5v+W3nuW4guWkqeays+S4reWtpuWtpueUn+mihuiiljwvc3Bhbj48YSBzdHlsZT0iY29sb3I6ICMzMzMzMzM7IHRleHQtZGVjb3JhdGlvbi1saW5lOiBub25lOyBmb250LWZhbWlseTogU2ltU3VuLCAnQXJpYWwgTmFycm93JzsgZm9udC1zaXplOiAxNHB4OyB0ZXh0LWluZGVudDogMjhweDsgYmFja2dyb3VuZC1jb2xvcjogI2Y4ZjhmODsiIGhyZWY9Imh0dHA6Ly93d3cuZ2R6c3h4LmNvbS9wZWl4dW4vIiB0YXJnZXQ9Il9ibGFuayIgcmVsPSJub29wZW5lciI+PHUgc3R5bGU9ImNvbG9yOiByZWQ7Ij7ln7norq08L3U+PC9hPjxzcGFuIHN0eWxlPSJmb250LWZhbWlseTogU2ltU3VuLCAnQXJpYWwgTmFycm93JzsgZm9udC1zaXplOiAxNHB4OyB0ZXh0LWluZGVudDogMjhweDsgYmFja2dyb3VuZC1jb2xvcjogI2Y4ZjhmODsiPuiQpea0u+WKqOi/m+ihjOWIsOW6leOAgjwvc3Bhbj4="
+							content = isEmpty(rsp.data.content) ? '' : Base64.decode(rsp.data.content)
+							//console.log('---content:', content)
+							that.is_expired=rsp.data.expired
+							if(that.is_expired)that.fail_prompt='活动已过期'
+							that.banner.image=rsp.data.image
+							that.banner.title=rsp.data.name
+							that.banner.source=rsp.data.depart_name
+							that.banner.location=rsp.data.location
+							if(null!=rsp.data.slice)
+								that.banner.datetime=convertUTCTimeToLocalDate(rsp.data.begin)+'至'+convertUTCTimeToLocalDate(rsp.data.end)
+							else
+								that.banner.datetime=convertUTCTimeToLocalTime(rsp.data.begin)
+							that.form.kind=rsp.data.kind
+							that.form.depart=rsp.data.depart
+							that.form.id=rsp.data.id
+							that.form.begin=rsp.data.begin
+							that.form.end=rsp.data.end
+							
+							that.images[0]=rsp.data.image
+						
+							const nodes = htmlParser(content.replace(/&amp;/, '&'));//替换image中的&amp;
+							// #ifdef APP-PLUS-NVUE
+							parseImgs(nodes)
+							// #endif
+							that.content = nodes
+							resolve(true)		
+						}else
+							throw Error("下载失败，请重试")
+					})
+				})
+				
+				var fun_getRevInfo=toAsync(this,function(that,resolve,reject){
+					if(isLogin()){
+						isUserRev({event:that.form.id}).then(rsp=>{
+							//需要没有预约过，并且活动未过期
+							if(0==rsp.code){
+								console.log("---isUserRev",rsp.data.is_rev,that.is_expired,rsp.data.is_expired)
+								that.is_rev=rsp.data.is_rev||that.is_expired
+								that.is_user_expired=rsp.data.is_expired
+								if(that.is_rev){
+									that.has_rev_info=!isEmpty(rsp.data.datetime)
+									that.rev_info='<i>您已预约在：'+rsp.data.datetime+'</i>'
+								}else{
+									that.has_rev_info=false
+								}
+								resolve(true)
+							}else
+								that.fail("下载失败，请重试")				
+						})
+					}else
+						resolve(true)
+				})
+				
+				orderCall(fun_getContent,fun_getRevInfo)
+			},
+			onPreview(){
+				uni.previewImage({
+				    current:this.images[0],    //  传 Number H5端出现不兼容 
+				    urls: this.images
+				})
+			},
+			signDown(item) {
+				console.log('signdown-->',this.form.id,this.form.kind)
+				confirmCancel(function(){
+					cancelOrder({event:_this.form.id}).then(rsp=>{
+						if(0==rsp.code){
+							//reloadToast('您已经成功取消预约','/pages/detail/index?id='+_this.form.id)
+							reloadToast('您已经成功取消预约','/pages/news/index')
+						}		
+					})	
+				},"机会难得，确定取消吗？")
+			
+			},
+			signup(item) {
+				console.log('signup-->',this.form.id,this.form.kind)
+				switch(this.form.kind){
+					// case 1:
+					// 	loginTo('/pages/order/index', {
+					// 		id: this.form.id,
+					// 		depart:this.form.depart,
+					// 		begin:this.form.begin,
+					// 		end:this.form.end
+					// 	})
+					// 	break;
+					default:
+						loginTo('/pages/order/date', {
+							id: this.form.id,
+							depart:this.form.depart,
+							begin:this.form.begin,
+							end:this.form.end
+						})
+				}
+			
+			},
+		}
+	}
+</script>
+
+<style>
+	/* #ifndef APP-PLUS */
+	page {
+	  min-height: 100%;
+	  flex: 1;
+	  flex-direction: column;
+	  position: absolute;
+	  left: 0;
+	  top: 0;
+	  right: 0;
+	  bottom: 0;
+		
+	}
+	
+
+	/* #endif */
+
+	.banner {
+		height: 180px;
+		position: relative;
+		background-color: #ccc;
+		flex-direction: row;
+		overflow: hidden;
+	}
+
+	.banner-img {
+		flex: 1;
+	}
+
+	.title-area {
+		position: absolute;
+		left: 15px;
+		right: 15px;
+		bottom: 15px;
+		z-index: 11;
+	}
+
+	.title-text {
+		font-size: 16px;
+		font-weight: 400;
+		line-height: 20px;
+		lines: 2;
+		color: #ffffff;
+		overflow: hidden;
+	}
+	
+	.rev-text {
+		font-size: 15px;
+		font-weight: 400;
+		line-height: 15px;
+		color: #ffffff;
+		background-color: #007AFFaa;
+		overflow: hidden;
+	}
+
+	.article-meta {
+		padding: 1px 15px;
+		flex-direction: row;
+		align-items: center;
+		justify-content: flex-start;
+	}
+
+	.article-meta-text {
+		color: gray;
+	}
+
+	.article-text {
+		font-size: 14px;
+		line-height: 25px;
+		margin: 0 10px;
+	}
+
+	.article-author {
+		font-size: 15px;
+	}
+
+	.article-time {
+		font-size: 15px;
+	}
+
+	.article-content {
+		background-color: #f8f8f8;
+		font-size: 15px;
+		padding: 0 15px;
+		margin-left: 16rpx;
+		margin-right: 16rpx;
+		margin-bottom: 15rpx;
+		overflow: hidden;
+	}
+
+	.my-fixed-box {
+		pointer-events: none; // 这里是重点，盒子可穿透操作
+		width: 100vw;
+		height: 100vh;
+		position: fixed;
+		left: 0;
+		bottom: 0;
+		z-index: 100000;
+	}
+
+	.fixed-button {
+		pointer-events: auto;
+		width: 100%;
+		height: auto;
+		overflow: hidden;
+		z-index: 9999;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		left: 20rpx;
+		top: 85vh;
+
+	}
+
+	/* #ifdef H5 */
+
+	.article-content {
+		line-height: 1.8;
+	}
+
+	.article-content img {
+		max-width: 100%;
+	}
+
+	/* 适配iphonex 有底部横条的 */
+	@supports (bottom: constant(safe-area-inset-bottom)) or (bottom: env(safe-area-inset-bottom)) {
+		.fixed-box {
+			bottom: constant(safe-area-inset-bottom);
+			bottom: env(safe-area-inset-bottom);
+		}
+	}
+
+	/* #endif */
+</style>

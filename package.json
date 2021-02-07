@@ -1,0 +1,40 @@
+{
+  "dependencies": {
+    "ali-oss": "^6.11.2",
+    "dayjs": "^1.9.8",
+    "flyio": "^0.6.14",
+    "js-base64": "^3.5.2",
+    "js-md5": "^0.7.3",
+    "jsonexport": "^3.0.1",
+    "moment": "^2.29.1",
+    "uview-ui": "^1.7.6"
+  },
+  "name": "802.rev_front",
+  "version": "1.0.0",
+  "main": "main.js",
+  "devDependencies": {
+    "node-sass": "^4.14.1",
+    "sass-loader": "^10.0.3"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "uni-app": {
+    "scripts": {
+      "h5-win": {
+        "title": "Electron-win",
+        "BROWSER": "",
+        "env": {
+          "UNI_PLATFORM": "h5"
+        },
+        "define": {
+          "H5-WIN": true
+        }
+      }
+    }
+  }
+}
