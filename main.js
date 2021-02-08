@@ -13,7 +13,7 @@ const dva = require("@/common/dva.js").dva;
 Vue.config.productionTip = false
 Vue.prototype.$dva = dva
 Vue.prototype.$base64 = Base64
-Vue.prototype.$host = 'https://unidemo.dcloud.net.cn/';
+Vue.prototype.$host = 'https://askxyz.top/';
 
 
 App.mpType = 'app'
