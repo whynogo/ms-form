@@ -12,3 +12,4 @@
 #### 2.其中引用了众多非常好用的共享的components代码，比如QS-poster,mix-tree,hx-navibar等，不再一一感谢！！！
 #### 3.修改了u-view上众多的组件，因为要满足自动表单的要求
 #### 4.文件上传到阿里云oss
+#### 5.在master分支上
